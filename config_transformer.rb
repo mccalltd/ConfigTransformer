@@ -13,86 +13,120 @@
 
 require 'nokogiri'
 
-def open_xml_doc(path)
-	f = File.open path
-	doc = Nokogiri::XML(f) do |config|
-		config.strict.noblanks
+class ConfigTransformer
+	attr_accessor :master_config_path, :target_config_path
+	
+	def initialize
 	end
-	f.close
-	doc
-end
 
-@master_config = open_xml_doc("master.config")
-@target_config = open_xml_doc("web.config")
+	def execute
+		raise ArgumentError, "master_config_path is required" if @master_config_path.nil?
+		raise ArgumentError, "target_config_path is required" if @target_config_path.nil?
+		
+		@master_config = open_xml_doc @master_config_path
+		@target_config = open_xml_doc @target_config_path		
 
-def climb_tree(node)
-	node.children.each do |n|
-		leaf = n
-		leaf_name = leaf.name
+		baseline_target_with @master_config
 		
-		leaf_type = case
-								when branches.include?("appSettings") && leaf_name == "add" then "appSetting"
-								when branches.include?("connectionStrings") && leaf_name == "add" then "connectionString"
-								else "element"
-								end
-					 
-		#puts "#{leaf_name} (#{leaf_type}): #{branches.join(' ')}"
-		
-		if leaf_type == "appSetting"
-			update_app_setting leaf
+		write_xml_to_target
+	end
+	
+private
+	def open_xml_doc(path)
+		f = File.open path
+		doc = Nokogiri::XML(f) do |config|
+			config.strict.noblanks
+		end
+		f.close
+		doc
+	end
+
+	def write_xml_to_target
+		f = File.open @target_config_path, "w"
+		@target_config.write_xml_to(f)
+		f.close
+	end
+	
+	def baseline_target_with(node)
+		node.children.each do |n|								
+			env = n.attr("env") || "default"
+			next if env != "default"
+			
+			case type_of_node n
+			when :appSetting
+				update_app_setting_with n
+			when :connectionString
+				update_connection_string_with n 
+			when :element
+				update_element_with n 
+				next
+			end
+			
+			baseline_target_with n
+		end
+	end
+
+	def type_of_node(node)
+		ancestor_names = node.ancestors.map {|a| a.name}
+		case
+		when ancestor_names.include?("appSettings") && node.name == "add" 
+			:appSetting
+		when ancestor_names.include?("connectionStrings") && node.name == "add" 
+			:connectionString
+		when node.attr("env") 
+			:element
+		end
+	end
+
+	def update_app_setting_with(node)
+		@target_config.add_child Nokogiri::XML::Node.new "appSettings", @target_config if @target_config.at_xpath("//appSettings").nil?
+		target_node = @target_config.at_xpath "//appSettings/add[@key='#{node.attr("key")}']"
+		if target_node
+			target_node.replace node
+		else
+			@target_config.at_xpath("//appSettings").add_child node
+		end
+	end
+
+	def update_connection_string_with(node)
+		@target_config.add_child Nokogiri::XML::Node.new "connectionStrings", @target_config if @target_config.at_xpath("//connectionStrings").nil?
+		target_node = @target_config.at_xpath("//connectionStrings/add[@name='#{node.attr("name")}']")
+		if target_node
+			target_node.replace node 
+		else
+			@target_config.at_xpath("//connectionStrings").add_child node
+		end
+	end
+
+	def update_element_with(node)
+		# create necessary ancestor elements
+		node.ancestors.reverse.each do |n| 
+			# skip the root
+			next if n.path.eql? "/"		
+			# skip unless the current ancestor is not in the target config
+			next unless @target_config.at_xpath(n.path).nil?
+			# find the parent of the missing element
+			parent = n.parent.path ? @target_config.at_xpath(n.parent.path) : @target_config
+			# append the missing element
+			parent.add_child n.dup 0
 		end
 		
-		climb_tree n
-	end
-end
-
-def baseline_target(node)
-	node.children.each do |n|						
-		node_name = n.name
-		node_type = node_type(n)
+		# the replacement node will be the given node minus any env attribute
+		replacement_node = node.dup
+		replacement_node.remove_attribute "env"	
 		
-		unless n.attr "env"		
-			update_app_setting(n) if node_type == :appSetting
-			update_connection_string(n) if node_type == :connectionString
+		# the target will be the given node's twin in the target if it exists;
+		# otherwise the target will be the given node's parent in the target
+		target_node = @target_config.at_xpath node.path
+		if target_node.nil?
+			@target_config.at_xpath(node.parent.path).add_child replacement_node
+		else
+			target_node.replace replacement_node
 		end
-		
-		baseline_target n
 	end
 end
 
-def node_type(node)
-	branches = node.ancestors
-								 .map {|a| a.name}
-								 .reverse
-								 .delete_if {|a| %w{document comment}.include?(a)}
-	case
-	when branches.include?("appSettings") && node.name == "add" then :appSetting
-	when branches.include?("connectionStrings") && node.name == "add" then :connectionString
-	else :element
-	end
-end
-
-def update_app_setting(master_node)
-	target_node = @target_config.at_css("appSettings add[key='#{master_node.attr("key")}']")
-	if target_node
-		target_node.replace(master_node) 
-	else
-		@target_config.at_css("appSettings").add_child(master_node)
-	end
-end
-
-def update_connection_string(master_node)
-	puts master_node
-	target_node = @target_config.at_css("connectionStrings add[name='#{master_node.attr("name")}']")
-	if target_node
-		target_node.replace(master_node) 
-	else
-		@target_config.at_css("connectionStrings").add_child(master_node)
-	end
-end
-
-baseline_target @master_config
-
-f = File.open("web.config", "w")
-@target_config.write_xml_to(f)
-f.close
+c = ConfigTransformer.new 
+c.master_config_path = "master.config"
+c.target_config_path = "web.config"
+c.execute

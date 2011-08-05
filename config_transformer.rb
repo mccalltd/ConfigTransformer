@@ -1,15 +1,15 @@
-#---------------------------------------------------------------------------------------
+#--------------------------------------------------------------------------------------------------
 # This utility will do the following:
 # 	1. 	update the target with the default settings in master 
-#		 		(those elements not marked with an "env" attribute)
+#		 		(those elements not marked with an "env" attribute or with env="default")
 # 	2. 	update the target with the environment-specific settings in master 
 #		 		(those elements marked with "env" attribute equal to the current environment)
 # 
 #	Notes: 
 # 	* appSettings/add elements will be matched by the "add" attribute
 # 	* connectionStrings/add elements will be matched by the "name" attribute
-# 	* all other elements will be matched by the element itself
-#---------------------------------------------------------------------------------------
+# 	* all other elements with "env" attribute will be inserted or will replace existing element
+#--------------------------------------------------------------------------------------------------
 
 require 'nokogiri'
 
@@ -41,12 +41,6 @@ private
 		doc
 	end
 
-	def write_xml_to_target
-		f = File.open @target_config_path, "w"
-		@target_config.write_xml_to(f)
-		f.close
-	end
-	
 	def baseline_target_with(node)
 		node.children.each do |n|								
 			env = n.attr("env") || "default"
@@ -64,18 +58,6 @@ private
 			end
 			
 			baseline_target_with n
-		end
-	end
-
-	def type_of_node(node)
-		ancestor_names = node.ancestors.map {|a| a.name}
-		case
-		when ancestor_names.include?("connectionStrings") && node.name == "add" 
-			:connectionString
-		when ancestor_names.include?("appSettings") && node.name == "add" 
-			:appSetting
-		when node.attr("env") 
-			:element
 		end
 	end
 
@@ -117,6 +99,12 @@ private
 		else
 			target_node.replace node
 		end
+	end
+
+	def write_xml_to_target
+		f = File.open @target_config_path, "w"
+		@target_config.write_xml_to(f)
+		f.close
 	end
 end
 

@@ -1,16 +1,3 @@
-#--------------------------------------------------------------------------------------------------
-# This utility will do the following:
-#   1.  update the target with the default settings in master 
-#       (those elements not marked with an "env" attribute or with env="default")
-#   2.  update the target with the environment-specific settings in master 
-#       (those elements marked with "env" attribute equal to the current environment)
-# 
-# Notes: 
-#   * appSettings/add elements will be matched by the "add" attribute
-#   * connectionStrings/add elements will be matched by the "name" attribute
-#   * all other elements with "env" attribute will be inserted or will replace existing element
-#--------------------------------------------------------------------------------------------------
-
 require 'nokogiri'
 
 class ConfigTransformer

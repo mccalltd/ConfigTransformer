@@ -14,20 +14,20 @@
 require 'nokogiri'
 
 class ConfigTransformer
+
   def initialize(master_config_path, target_config_path)
+    raise ArgumentError, "master_config_path is required" if master_config_path.nil?
+    raise ArgumentError, "target_config_path is required" if target_config_path.nil?
+
     @master_config_path = master_config_path
     @target_config_path = target_config_path
   end
   
-  def execute
-    raise ArgumentError, "master_config_path is required" if @master_config_path.nil?
-    raise ArgumentError, "target_config_path is required" if @target_config_path.nil?
-    
+  def execute    
     @master_config = open_xml_doc @master_config_path
     @target_config = open_xml_doc @target_config_path		
 
     baseline_target_with @master_config
-    
     write_xml_to_target
   end
 	
@@ -69,20 +69,7 @@ private
 
   def update_element_with(node)		
     add_to_target node
-    
-    replacement_node = @target_config.at_xpath node.path
-    replacement_node.remove_attribute "env"	
-  end
-
-  def ensure_ancestors_exist(node)
-    node.ancestors.reverse.each do |n| 
-      # skip the root existing elements
-      next if n.path.eql? "/"		
-      next unless @target_config.at_xpath(n.path).nil?
-      # append missing element
-      parent = n.parent.path ? @target_config.at_xpath(n.parent.path) : @target_config
-      parent.add_child n.dup 0
-    end
+    @target_config.at_xpath(node.path).remove_attribute "env"	
   end
 
   def add_to_target(node, attr_selector = nil)
@@ -93,6 +80,17 @@ private
       @target_config.at_xpath(node.parent.path).add_child node
     else
       target_node.replace node
+    end
+  end
+
+  def ensure_ancestors_exist(node)
+    node.ancestors.reverse.each do |n| 
+      # skip the root and any existing elements
+      next if n.path.eql? "/"		
+      next unless @target_config.at_xpath(n.path).nil?
+      # append missing element
+      parent = n.parent.path ? @target_config.at_xpath(n.parent.path) : @target_config
+      parent.add_child n.dup 0
     end
   end
 

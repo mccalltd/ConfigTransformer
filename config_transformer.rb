@@ -52,12 +52,13 @@ private
 			env = n.attr("env") || "default"
 			next if env != "default"
 			
-			case type_of_node n
-			when :appSetting
-				update_app_setting_with n
-			when :connectionString
+			ancestor_names = n.ancestors.map {|a| a.name}
+			case
+			when ancestor_names.include?("connectionStrings") && n.name == "add" 
 				update_connection_string_with n 
-			when :element
+			when ancestor_names.include?("appSettings") && n.name == "add" 
+				update_app_setting_with n
+			when node.attr("env") 
 				update_element_with n 
 				next
 			end
@@ -69,36 +70,31 @@ private
 	def type_of_node(node)
 		ancestor_names = node.ancestors.map {|a| a.name}
 		case
-		when ancestor_names.include?("appSettings") && node.name == "add" 
-			:appSetting
 		when ancestor_names.include?("connectionStrings") && node.name == "add" 
 			:connectionString
+		when ancestor_names.include?("appSettings") && node.name == "add" 
+			:appSetting
 		when node.attr("env") 
 			:element
 		end
 	end
 
-	def update_app_setting_with(node)
-		@target_config.add_child Nokogiri::XML::Node.new "appSettings", @target_config if @target_config.at_xpath("//appSettings").nil?
-		target_node = @target_config.at_xpath "//appSettings/add[@key='#{node.attr("key")}']"
-		if target_node
-			target_node.replace node
-		else
-			@target_config.at_xpath("//appSettings").add_child node
-		end
-	end
-
 	def update_connection_string_with(node)
-		@target_config.add_child Nokogiri::XML::Node.new "connectionStrings", @target_config if @target_config.at_xpath("//connectionStrings").nil?
-		target_node = @target_config.at_xpath("//connectionStrings/add[@name='#{node.attr("name")}']")
-		if target_node
-			target_node.replace node 
-		else
-			@target_config.at_xpath("//connectionStrings").add_child node
-		end
+		add_to_target node, "[@name='#{node.attr("name")}']"
 	end
 
-	def update_element_with(node)
+	def update_app_setting_with(node)
+		add_to_target node, "[@key='#{node.attr("key")}']"
+	end
+
+	def update_element_with(node)		
+		add_to_target node
+		
+		replacement_node = @target_config.at_xpath node.path
+		replacement_node.remove_attribute "env"	
+	end
+
+	def ensure_ancestors_exist(node)
 		# create necessary ancestor elements
 		node.ancestors.reverse.each do |n| 
 			# skip the root
@@ -110,18 +106,16 @@ private
 			# append the missing element
 			parent.add_child n.dup 0
 		end
-		
-		# the replacement node will be the given node minus any env attribute
-		replacement_node = node.dup
-		replacement_node.remove_attribute "env"	
-		
-		# the target will be the given node's twin in the target if it exists;
-		# otherwise the target will be the given node's parent in the target
-		target_node = @target_config.at_xpath node.path
+	end
+	
+	def add_to_target(node, attr_selector = nil)
+		# not sure why the given node has an index in its path -- need to strip it
+		target_node = @target_config.at_xpath "#{node.path.gsub(/\[.*?\]$/, "")}#{attr_selector}"
 		if target_node.nil?
-			@target_config.at_xpath(node.parent.path).add_child replacement_node
+			ensure_ancestors_exist node
+			@target_config.at_xpath(node.parent.path).add_child node
 		else
-			target_node.replace replacement_node
+			target_node.replace node
 		end
 	end
 end

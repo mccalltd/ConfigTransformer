@@ -1,5 +1,11 @@
 require 'nokogiri'
 
+class Nokogiri::XML::Node
+  def element_path
+    path.gsub(/\[.*?\]$/, "")
+  end
+end
+
 class ConfigTransformer
 
   def initialize(master_config_path, target_config_path, env = "default")
@@ -41,7 +47,7 @@ private
   def transform_target_to_environment_with(node)    
     node.children.each do |n|
       # skip anything not relevent to the current environment or processed elements
-      unless n.attr("env") != @env
+      if n.attr("env") == @env
         next if transform_target_with n
       end
       transform_target_to_environment_with n
@@ -49,13 +55,11 @@ private
   end
 
   def transform_target_with(node)
-    ancestor_names = node.ancestors.map {|a| a.name}
-    case
-    when ancestor_names.include?("connectionStrings") && node.name == "add" 
+    if node.element_path.end_with? "/connectionStrings/add"
       add_to_target node, "[@name='#{node.attr("name")}']"
-    when ancestor_names.include?("appSettings") && node.name == "add" 
+    elsif node.element_path.end_with? "/appSettings/add"
       add_to_target node, "[@key='#{node.attr("key")}']"
-    when node.attr("env") 
+    elsif node.attr("env") 
       add_to_target node
     else 
       return false # did not process node 
@@ -64,8 +68,7 @@ private
   end
   
   def add_to_target(node, attr_selector = nil)
-    # not sure why the given node has an index in its path -- need to strip it
-    target_node = @target_config.at_xpath "#{node.path.gsub(/\[.*?\]$/, "")}#{attr_selector}"
+    target_node = @target_config.at_xpath "#{node.element_path}#{attr_selector}"
     if target_node.nil?
       ensure_ancestors_exist node
       @target_config.at_xpath(node.parent.path).add_child node

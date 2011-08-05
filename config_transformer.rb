@@ -1,11 +1,11 @@
 #--------------------------------------------------------------------------------------------------
 # This utility will do the following:
 #   1.  update the target with the default settings in master 
-#		    (those elements not marked with an "env" attribute or with env="default")
+#       (those elements not marked with an "env" attribute or with env="default")
 #   2.  update the target with the environment-specific settings in master 
 #       (those elements marked with "env" attribute equal to the current environment)
 # 
-#	Notes: 
+# Notes: 
 #   * appSettings/add elements will be matched by the "add" attribute
 #   * connectionStrings/add elements will be matched by the "name" attribute
 #   * all other elements with "env" attribute will be inserted or will replace existing element
@@ -14,9 +14,9 @@
 require 'nokogiri'
 
 class ConfigTransformer
-  attr_accessor :master_config_path, :target_config_path
-  
-  def initialize
+  def initialize(master_config_path, target_config_path)
+    @master_config_path = master_config_path
+    @target_config_path = target_config_path
   end
   
   def execute
@@ -34,17 +34,15 @@ class ConfigTransformer
 private
   def open_xml_doc(path)
     f = File.open path
-    doc = Nokogiri::XML(f) do |config|
-      config.strict.noblanks
-    end
+    doc = Nokogiri::XML(f) {|config| config.strict.noblanks}
     f.close
     doc
   end
 
   def baseline_target_with(node)
-    node.children.each do |n|								
-      env = n.attr("env") || "default"
-      next if env != "default"
+    node.children.each do |n|
+      # skip environment specific elements, we're baselining with defaults
+      next if (n.attr("env") || "default") != "default"
       
       ancestor_names = n.ancestors.map {|a| a.name}
       case
@@ -77,15 +75,12 @@ private
   end
 
   def ensure_ancestors_exist(node)
-    # create necessary ancestor elements
     node.ancestors.reverse.each do |n| 
-      # skip the root
+      # skip the root existing elements
       next if n.path.eql? "/"		
-      # skip unless the current ancestor is not in the target config
       next unless @target_config.at_xpath(n.path).nil?
-      # find the parent of the missing element
+      # append missing element
       parent = n.parent.path ? @target_config.at_xpath(n.parent.path) : @target_config
-      # append the missing element
       parent.add_child n.dup 0
     end
   end
@@ -108,7 +103,4 @@ private
   end
 end
 
-c = ConfigTransformer.new 
-c.master_config_path = "master.config"
-c.target_config_path = "web.config"
-c.execute
+ConfigTransformer.new("master.config", "web.config").execute

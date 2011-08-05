@@ -26,7 +26,7 @@ ConfigTransformer.new("master/config/path.config", "target/config/path.config").
 
 ConfigTransformer.new("master/config/path.config", "target/config/path.config", env="...").execute
 
-* This will apply your environment-specific settings to your project's config.
+* This will apply your environment-specific settings to your project's config. The baselining step above is not necessary when running environment-specific updates, as it is performed anyway.
 
 h2. Awesome. But I live in the real world, why is this useful? 
 

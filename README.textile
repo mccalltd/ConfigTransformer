@@ -1,12 +1,31 @@
 h1. Oh My God This Will Blow Your Mind!
 
-h3. This utility will do the following:
+Only kidding. It will breeze your mind.
 
-* update the target with the default settings in master (those elements not marked with an "env" attribute or with env="default")
-* update the target with the environment-specific settings in master (those elements marked with "env" attribute equal to the current environment)
+h2. What is it?
 
-h3. Notes: 
+A .NET configuration fear killer. Define default config settings for your application or solution, using a config file. Apply the defaults _and_ the environment specific-settings from that file to a target config file.
 
-* appSettings/add elements will be matched by the "add" attribute
-* connectionStrings/add elements will be matched by the "name" attribute
-* all other elements with "env" attribute will be inserted or will replace existing element
+h2. Why do I care?
+
+* You don't like the Web Deployment config transform solution provided by Microsoft: you don't like having to manage different solution configurations; you don't like the transformation syntax it uses; you have config settings that apply to more than one project in a solution.
+* You like the freedom to specify plain old config elements, and don't mind decoration environment-specific settings with and env attribute.
+* You want some ruby code you can hack into shape for your own purposes.
+
+h2. How does it work?
+
+* Create a default xml config file for your project.
+* Create a master config file that holds the default and environment specific settings for your solution.
+* Add two connection strings, one without an env="..." attribute, and another with.
+* Add two app settings, one without an env="..." attribute, and another with.
+* Add another element, like system.net, and have two mailSettings elements, one marked env="default" and another marked env="..."
+* ConfigTransformer.new("master/config/path.config", "target/config/path.config").execute
+* This will bring your project's config inline with the master's defaults (connection strings and app settings not marked with env="...", and other elements marked env="default").
+* ConfigTransformer.new("master/config/path.config", "target/config/path.config", env="...").execute
+* This will apply your environment-specific settings to your project's config.
+
+h2. Awesome. But I live in the real world, why is this useful? 
+
+* Rake task for build process, anyone? Check out "albacore":https://github.com/derickbailey/Albacore. 
+* Rake task for updating configs at your command.
+* Independence from the Microsoft solution - the sky is the limit.

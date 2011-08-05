@@ -19,11 +19,13 @@ h2. How does it work?
 * Add two connection strings, one without an env="..." attribute, and another with.
 * Add two app settings, one without an env="..." attribute, and another with.
 * Add another element, like system.net, and have two mailSettings elements, one marked env="default" and another marked env="..."
-```ruby
+
 ConfigTransformer.new("master/config/path.config", "target/config/path.config").execute
-```
+
 * This will bring your project's config inline with the master's defaults (connection strings and app settings not marked with env="...", and other elements marked env="default").
-* ConfigTransformer.new("master/config/path.config", "target/config/path.config", env="...").execute
+
+ConfigTransformer.new("master/config/path.config", "target/config/path.config", env="...").execute
+
 * This will apply your environment-specific settings to your project's config.
 
 h2. Awesome. But I live in the real world, why is this useful? 

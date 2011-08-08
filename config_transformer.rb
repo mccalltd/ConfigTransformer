@@ -1,13 +1,10 @@
 require 'nokogiri'
 
 class Nokogiri::XML::Node
-  def element_path
-    path.gsub(/\[.*?\]$/, "")
-  end
+  def element_path; path.gsub(/\[.*?\]$/, ""); end
 end
 
 class ConfigTransformer
-
   def initialize(master_config_path, target_config_path, env = "default")
     raise ArgumentError, "master_config_path is required" if master_config_path.nil?
     raise ArgumentError, "target_config_path is required" if target_config_path.nil?
